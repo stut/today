@@ -4,8 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,20 +15,34 @@ import (
 var debugMode bool
 
 func main() {
-	listenAddress := flag.String("listen-address", "", "the address on which to listen")
-	listenPort := flag.Int("listen-port", 8080, "the port on which to listen")
-	debugModeFlag := flag.Bool("debug", false, "enable debug mode")
+	listenAddressPtr := flag.String("listen-address", "", "the address on which to listen")
+	listenPortPtr := flag.Int("listen-port", 0, "the port on which to listen")
+	debugModePtr := flag.Bool("debug", false, "enable debug mode")
 	flag.Parse()
 
-	debugMode = *debugModeFlag
+	listenAddress := *listenAddressPtr
+	listenPort := *listenPortPtr
+	debugMode := *debugModePtr
 
 	if !debugMode {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
+	if listenPort == 0 {
+		// Grab the listen port from the environment if it exists.
+		listenPortStr, gotPort := os.LookupEnv("NOMAD_PORT_http")
+		if gotPort {
+			var err error
+			listenPort, err = strconv.Atoi(listenPortStr)
+			if err != nil {
+				log.Fatal("Failed to convert port from environment to integer!")
+			}
+		}
+	}
+
 	peopleHrCalendarUrl, gotUrl := os.LookupEnv("PEOPLEHR_CALENDAR_URL")
 	if !gotUrl {
-		log.Fatalf("Please specify PEOPLEHR_CALENDAR_URL in the environment!\n")
+		log.Fatal("Please specify PEOPLEHR_CALENDAR_URL in the environment!")
 	}
 	peopleHr := NewPeopleHr(peopleHrCalendarUrl)
 
@@ -42,11 +58,11 @@ func main() {
 		}
 	})
 
-	listenAddressAndPort := fmt.Sprintf("%s:%d", *listenAddress, *listenPort)
-	log.Printf("API server listening on %s", listenAddressAndPort)
-
-	err := http.ListenAndServe(listenAddressAndPort, r)
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", listenAddress, listenPort))
 	if err != nil {
-		log.Fatalf("Fatal error:\n Failed to create HTTP server\n  %s", err)
+		panic(err)
 	}
+
+	log.Printf("API server listening on %s:%d\n", listenAddress, listener.Addr().(*net.TCPAddr).Port)
+	panic(http.Serve(listener, r))
 }
