@@ -5,17 +5,18 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/apognu/gocal"
 )
 
-type StringSlice map[string][]string
-type StringStringSlice map[string]StringSlice
+type StringSliceMap map[string][]string
+type StringStringSliceMap map[string]StringSliceMap
 
 type TodayData struct {
-	Calendar StringStringSlice
+	Calendar StringStringSliceMap
 }
 
 type PeopleHrCalendar struct {
@@ -75,10 +76,10 @@ func (obj *PeopleHr) Today() (*TodayData, error) {
 	return &res, nil
 }
 
-func (obj *PeopleHr) TodayCalendar() (StringStringSlice, error) {
+func (obj *PeopleHr) TodayCalendar() (StringStringSliceMap, error) {
 	var err error
 
-	res := make(StringStringSlice, 0)
+	res := make(StringStringSliceMap, 0)
 
 	now := time.Now()
 	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
@@ -103,7 +104,7 @@ func (obj *PeopleHr) TodayCalendar() (StringStringSlice, error) {
 	return res, err
 }
 
-func (obj *PeopleHr) TodayCalendarDay(start *time.Time, end *time.Time) (StringSlice, error) {
+func (obj *PeopleHr) TodayCalendarDay(start *time.Time, end *time.Time) (StringSliceMap, error) {
 	cal := gocal.NewParser(bytes.NewReader(obj.Calendar.Data))
 	cal.Start = start
 	cal.End = end
@@ -113,7 +114,7 @@ func (obj *PeopleHr) TodayCalendarDay(start *time.Time, end *time.Time) (StringS
 		return nil, err
 	}
 
-	res := make(StringSlice, 0)
+	res := make(StringSliceMap, 0)
 	for _, evt := range cal.Events {
 		summaryParts := strings.Split(evt.Summary, " - ")
 		key := summaryParts[len(summaryParts)-1]
@@ -128,6 +129,7 @@ func (obj *PeopleHr) TodayCalendarDay(start *time.Time, end *time.Time) (StringS
 			res[key] = make([]string, 0)
 		}
 		res[key] = append(res[key], val)
+		sort.Strings(res[key])
 	}
 
 	return res, nil
